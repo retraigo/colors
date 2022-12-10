@@ -1,5 +1,3 @@
-import { fromLinear } from "./src/util/linear.ts";
-
 export {
   Color,
   DELTA,
