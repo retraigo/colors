@@ -41,32 +41,20 @@ export class Color {
   a: number;
   /** Construct a color from hex code */
   constructor(hex: string);
+  /** Construct a color from hex number */
+  constructor(hex: number);
   /** Construct a color from rgba values */
   constructor(r: number, g: number, b: number, a?: number);
   constructor(rOrHex: number | string, g?: number, b?: number, a = 255) {
     let red = 0, green = 0, blue = 0, alpha = 255;
     if (typeof rOrHex === "string") {
-      if (!/^#([A-Fa-f0-9]{3}){1,2}([A-Fa-f0-9]{2})?$/.test(rOrHex)) {
-        throw new TypeError(`Expected number or hex code. Got ${rOrHex}`);
-      }
-      let colors = rOrHex.slice(1).split("");
-      if (colors.length === 3) {
-        colors = [
-          colors[0],
-          colors[0],
-          colors[1],
-          colors[1],
-          colors[2],
-          colors[2],
-        ];
-      }
-      // Convert hexadecimal to decimal
-      red = parseInt(`${colors[0]}${colors[1]}`, 16) || 0;
-      green = parseInt(`${colors[2]}${colors[3]}`, 16) || 0;
-      blue = parseInt(`${colors[4]}${colors[5]}`, 16) || 0;
-      if (colors[6] && colors[7]) {
-        alpha = parseInt(`${colors[6]}${colors[7]}`, 16) ?? 255;
-      }
+      [red, green, blue, alpha] = rgbaFromHex(rOrHex);
+    } else if (
+      typeof rOrHex === "number" && typeof g === "undefined" &&
+      typeof b === "undefined"
+    ) {
+      const hex = rOrHex.toString(16);
+      [red, green, blue, alpha] = rgbaFromHex(`#${hex}`);
     } else {
       red = rOrHex || 0;
       green = g || 0;
@@ -269,6 +257,14 @@ export class Color {
   toString(): string {
     return `rgba(${this.r},${this.g},${this.b},${this.a / 255})`;
   }
+  static fromHex(hex: string): Color {
+    const [red, green, blue, alpha] = rgbaFromHex(hex);
+    return new Color(red, green, blue, alpha);
+  }
+  static fromRgba(r: number, g: number, b: number): Color;
+  static fromRgba(r: number, g: number, b: number, a = 255): Color {
+    return new Color(r, g, b, a);
+  }
   static toHex(n: number): string {
     return `${(n | 1 << 8).toString(16).slice(1)}`;
   }
@@ -290,4 +286,30 @@ export function meanDistance(from: Color, to: Color): number {
 function labF(t: number): number {
   if (t > DELTA_CUBE) return Math.cbrt(t);
   return (t / (3 * DELTA_SQUARE)) + DELTA_ADD;
+}
+
+function rgbaFromHex(hex: string): [number, number, number, number] {
+  if (!/^#([A-Fa-f0-9]{3}){1,2}([A-Fa-f0-9]{2})?$/.test(hex)) {
+    throw new TypeError(`Expected number or hex code. Got ${hex}`);
+  }
+  let colors = hex.slice(1).split("");
+  if (colors.length === 3) {
+    colors = [
+      colors[0],
+      colors[0],
+      colors[1],
+      colors[1],
+      colors[2],
+      colors[2],
+    ];
+  }
+  // Convert hexadecimal to decimal
+  const red = parseInt(`${colors[0]}${colors[1]}`, 16) || 0;
+  const green = parseInt(`${colors[2]}${colors[3]}`, 16) || 0;
+  const blue = parseInt(`${colors[4]}${colors[5]}`, 16) || 0;
+  let alpha = 255;
+  if (colors[6] && colors[7]) {
+    alpha = parseInt(`${colors[6]}${colors[7]}`, 16) ?? 255;
+  }
+  return [red, green, blue, alpha];
 }
