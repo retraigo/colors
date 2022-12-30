@@ -274,13 +274,21 @@ export class Color {
   toString(): string {
     return `rgba(${this.r},${this.g},${this.b},${this.a / 255})`;
   }
+  static fromCmyk(c: number, m: number, y: number, k: number): Color {
+    const divi = (1 - (k / 100));
+    return new Color(
+      255 * (1 - (c / 100)) * divi,
+      255 * (1 - (m / 100)) * divi,
+      255 * (1 - (y / 100)) * divi,
+    );
+  }
   static fromHex(hex: string): Color {
     const [red, green, blue, alpha] = rgbaFromHex(hex);
     return new Color(red, green, blue, alpha);
   }
   static fromHsl(h: number, s: number, l: number): Color {
-    l = l / 100
-    s = s / 100
+    l = l / 100;
+    s = s / 100;
     const chroma = (1 - Math.abs((2 * l) - 1)) * s;
     const h1 = h / 60;
     const m = l - (chroma / 2);
@@ -305,8 +313,8 @@ export class Color {
     );
   }
   static fromHsv(h: number, s: number, v: number): Color {
-    s = s / 100
-    v = v / 100
+    s = s / 100;
+    v = v / 100;
     const chroma = v * s;
     const h1 = h / 60;
     const m = v - chroma;
