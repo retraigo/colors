@@ -278,6 +278,10 @@ export class Color {
     const [red, green, blue, alpha] = rgbaFromHex(hex);
     return new Color(red, green, blue, alpha);
   }
+  static fromLab(l: number, a: number, b: number): Color {
+    const [x, y, z] = xyzFromLab(l, a, b);
+    return Color.fromXyz(x, y, z);
+  }
   /** Redundant static method for conversion from sRGB color space */
   static fromRgba(r: number, g: number, b: number): Color;
   static fromRgba(r: number, g: number, b: number, a = 255): Color {
@@ -317,6 +321,12 @@ function labF(t: number): number {
   return (t / (3 * DELTA_SQUARE)) + DELTA_ADD;
 }
 
+/** Inverse lab function */
+function inverseLabF(t: number): number {
+  if (t > DELTA_CUBE) return Math.pow(t, 3);
+  return (3 * DELTA_SQUARE) * (t - DELTA_ADD);
+}
+
 function rgbaFromHex(hex: string): [number, number, number, number] {
   if (!/^#([A-Fa-f0-9]{3}){1,2}([A-Fa-f0-9]{2})?$/.test(hex)) {
     throw new TypeError(`Expected number or hex code. Got ${hex}`);
@@ -344,7 +354,11 @@ function rgbaFromHex(hex: string): [number, number, number, number] {
 }
 
 /** Convert CIE XYZ to Linear RGB color space */
-export function rgbFromXyz(x: number, y: number, z: number): [number, number, number] {
+export function rgbFromXyz(
+  x: number,
+  y: number,
+  z: number,
+): [number, number, number] {
   return [
     (3.2406 * x) + (-1.5372 * y) + (-0.4986 * z),
     (-0.9689 * x) + (1.8758 * y) + (0.0415 * z),
@@ -352,8 +366,21 @@ export function rgbFromXyz(x: number, y: number, z: number): [number, number, nu
   ];
 }
 
-/** 
- * Find the nearest neighbour of a color in a palette 
+export function xyzFromLab(
+  l: number,
+  a: number,
+  b: number,
+): [number, number, number] {
+  const add = (l + 16) / 116;
+  const x = STANDARD_ILLUMINANT[0] * inverseLabF(add + (a / 500));
+  const y = STANDARD_ILLUMINANT[0] * inverseLabF(add);
+  const z = STANDARD_ILLUMINANT[0] * inverseLabF(add - (b / 200));
+
+  return [x, y, z];
+}
+
+/**
+ * Find the nearest neighbour of a color in a palette
  * It would be more accurate to use consider luminance
  * along with Euclidean distance but I chose to stay with
  * distance for performance.
