@@ -343,10 +343,34 @@ function rgbaFromHex(hex: string): [number, number, number, number] {
   return [red, green, blue, alpha];
 }
 
-function rgbFromXyz(x: number, y: number, z: number): [number, number, number] {
+/** Convert CIE XYZ to Linear RGB color space */
+export function rgbFromXyz(x: number, y: number, z: number): [number, number, number] {
   return [
     (3.2406 * x) + (-1.5372 * y) + (-0.4986 * z),
     (-0.9689 * x) + (1.8758 * y) + (0.0415 * z),
     (0.0557 * x) + (-0.2040 * y) + (1.0570 * z),
   ];
+}
+
+/** 
+ * Find the nearest neighbour of a color in a palette 
+ * It would be more accurate to use consider luminance
+ * along with Euclidean distance but I chose to stay with
+ * distance for performance.
+ */
+export function findClosestColor(color: Color, palette: Color[]): Color {
+  const closest = {
+    dist: Infinity,
+    i: 0,
+  };
+  let i = 0;
+  while (i < palette.length) {
+    const m = meanDistance(color, palette[i]);
+    if (m < closest.dist) {
+      closest.dist = m;
+      closest.i = i;
+    }
+    i += 1;
+  }
+  return palette[closest.i];
 }
