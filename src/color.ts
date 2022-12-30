@@ -278,6 +278,32 @@ export class Color {
     const [red, green, blue, alpha] = rgbaFromHex(hex);
     return new Color(red, green, blue, alpha);
   }
+  static fromHsl(h: number, s: number, l: number): Color {
+    l = l / 100
+    s = s / 100
+    const chroma = (1 - Math.abs((2 * l) - 1)) * s;
+    const h1 = h / 60;
+    const m = l - (chroma / 2);
+
+    const x = chroma * (1 - Math.abs((h1 % 2) - 1));
+
+    let intermediate = [0, 0, 0];
+
+    if (0 <= h1 && h1 < 1) intermediate = [chroma, x, 0];
+    else if (1 <= h1 && h1 < 2) intermediate = [x, chroma, 0];
+    else if (2 <= h1 && h1 < 3) intermediate = [0, chroma, x];
+    else if (3 <= h1 && h1 < 4) intermediate = [0, x, chroma];
+    else if (4 <= h1 && h1 < 5) intermediate = [x, 0, chroma];
+    else if (5 <= h1 && h1 < 6) intermediate = [chroma, 0, x];
+
+    const rgb = [intermediate[0] + m, intermediate[1] + m, intermediate[2] + m];
+
+    return new Color(
+      Math.round(rgb[0] * 255),
+      Math.round(rgb[1] * 255),
+      Math.round(rgb[2] * 255),
+    );
+  }
   static fromLab(l: number, a: number, b: number): Color {
     const [x, y, z] = xyzFromLab(l, a, b);
     return Color.fromXyz(x, y, z);
@@ -373,8 +399,8 @@ export function xyzFromLab(
 ): [number, number, number] {
   const add = (l + 16) / 116;
   const x = STANDARD_ILLUMINANT[0] * inverseLabF(add + (a / 500));
-  const y = STANDARD_ILLUMINANT[0] * inverseLabF(add);
-  const z = STANDARD_ILLUMINANT[0] * inverseLabF(add - (b / 200));
+  const y = STANDARD_ILLUMINANT[1] * inverseLabF(add);
+  const z = STANDARD_ILLUMINANT[2] * inverseLabF(add - (b / 200));
 
   return [x, y, z];
 }
