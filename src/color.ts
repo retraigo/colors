@@ -304,6 +304,32 @@ export class Color {
       Math.round(rgb[2] * 255),
     );
   }
+  static fromHsv(h: number, s: number, v: number): Color {
+    s = s / 100
+    v = v / 100
+    const chroma = v * s;
+    const h1 = h / 60;
+    const m = v - chroma;
+
+    const x = chroma * (1 - Math.abs((h1 % 2) - 1));
+
+    let intermediate = [0, 0, 0];
+
+    if (0 <= h1 && h1 < 1) intermediate = [chroma, x, 0];
+    else if (1 <= h1 && h1 < 2) intermediate = [x, chroma, 0];
+    else if (2 <= h1 && h1 < 3) intermediate = [0, chroma, x];
+    else if (3 <= h1 && h1 < 4) intermediate = [0, x, chroma];
+    else if (4 <= h1 && h1 < 5) intermediate = [x, 0, chroma];
+    else if (5 <= h1 && h1 < 6) intermediate = [chroma, 0, x];
+
+    const rgb = [intermediate[0] + m, intermediate[1] + m, intermediate[2] + m];
+
+    return new Color(
+      Math.round(rgb[0] * 255),
+      Math.round(rgb[1] * 255),
+      Math.round(rgb[2] * 255),
+    );
+  }
   static fromLab(l: number, a: number, b: number): Color {
     const [x, y, z] = xyzFromLab(l, a, b);
     return Color.fromXyz(x, y, z);
