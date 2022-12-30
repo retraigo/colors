@@ -234,6 +234,23 @@ export class Color {
     const z = (0.0193 * r) + (0.1192 * g) + (0.9505 * b);
     return [x, y, z];
   }
+  /*
+  xyz is a very bad idea
+
+  brighten(amt: number): Color {
+    let [x, y, z] = this.xyz;
+    y += y * amt;
+    if(y > 1) y = 1
+    if(y < 0) y = 0
+    const [r, g, b] = rgbFromXyz(x, y, z)
+    return new Color(
+      Math.round(fromLinear(r) * 255),
+      Math.round(fromLinear(g) * 255),
+      Math.round(fromLinear(b) * 255),
+      this.a,
+    );
+  }
+  */
   /** Get contrast ratio  */
   contrast(that: Color): number {
     const l1 = this.luminance;
@@ -261,9 +278,21 @@ export class Color {
     const [red, green, blue, alpha] = rgbaFromHex(hex);
     return new Color(red, green, blue, alpha);
   }
+  /** Redundant static method for conversion from sRGB color space */
   static fromRgba(r: number, g: number, b: number): Color;
   static fromRgba(r: number, g: number, b: number, a = 255): Color {
     return new Color(r, g, b, a);
+  }
+  /** Convert from CIE XYZ color space */
+  static fromXyz(x: number, y: number, z: number): Color {
+    const [r, g, b] = rgbFromXyz(x, y, z).map((x) =>
+      Math.round(fromLinear(x) * 255)
+    ).map((x) => x < 0 ? 0 : x > 255 ? 255 : x);
+    return new Color(
+      r,
+      g,
+      b,
+    );
   }
   static toHex(n: number): string {
     return `${(n | 1 << 8).toString(16).slice(1)}`;
@@ -312,4 +341,12 @@ function rgbaFromHex(hex: string): [number, number, number, number] {
     alpha = parseInt(`${colors[6]}${colors[7]}`, 16) ?? 255;
   }
   return [red, green, blue, alpha];
+}
+
+function rgbFromXyz(x: number, y: number, z: number): [number, number, number] {
+  return [
+    (3.2406 * x) + (-1.5372 * y) + (-0.4986 * z),
+    (-0.9689 * x) + (1.8758 * y) + (0.0415 * z),
+    (0.0557 * x) + (-0.2040 * y) + (1.0570 * z),
+  ];
 }
