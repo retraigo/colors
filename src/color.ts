@@ -26,6 +26,7 @@ export interface ColorData {
   hex: string;
   /** CIE 1931 XYZ color space */
   xyz: [number, number, number];
+  /** CIE L*a*b* color space */
   lab: [number, number, number];
 }
 
