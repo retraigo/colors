@@ -132,7 +132,7 @@ export class Color {
   get hsv(): [number, number, number] {
     const s = this.saturation;
     const l = this.lightness;
-    const v = (l + (s * Math.min(l, 1 - l)));
+    const v = l + (s * Math.min(l, 1 - l));
 
     return [
       Math.round(this.hue),
@@ -149,12 +149,11 @@ export class Color {
     const r = this.r / 255;
     const g = this.g / 255;
     const b = this.b / 255;
-    const hue =
-      (max === r
-        ? (g - b) / c
-        : max === g
-        ? ((b - r) / c) + 2
-        : ((r - g) / c) + 4);
+    const hue = max === r
+      ? (g - b) / c
+      : max === g
+      ? ((b - r) / c) + 2
+      : ((r - g) / c) + 4;
     if (hue < 0) return (hue * 60) + 360;
     return hue * 60;
   }
@@ -258,6 +257,36 @@ export class Color {
     const l2 = that.luminance;
     return l1 > l2 ? (l1 + 0.5) / (l2 + 0.5) : (l2 + 0.5) / (l1 + 0.5);
   }
+  /**
+   * Mix with a different color.
+   * Copyright (c) 2006-2009 Hampton Catlin, Natalie Weizenbaum, and Chris Eppstein
+   * http://sass-lang.com
+   * @see https://github.com/less/less.js/blob/cae5021358a5fca932c32ed071f652403d07def8/lib/less/functions/color.js#L302
+   */
+  mix(that: Color, percentage = 50): Color {
+    let p = percentage / 100;
+    if (p > 1) p = 1;
+    else if (p < 0) p = 0;
+    const w = p * 2 - 1;
+    const a = this.a - that.a;
+
+    const w1 = ((w * a === -1 ? w : (w + a) / (1 + w * a)) + 1) / 2.0;
+    const w2 = 1 - w1;
+
+    const r = Math.round(this.r * w1 + that.r * w2);
+    const g = Math.round(this.g * w1 + that.g * w2);
+    const b = Math.round(this.b * w1 + that.b * w2);
+    const alpha = parseFloat((this.a * p + that.a * (1 - p)).toFixed(8));
+    return new Color(r, g, b, alpha);
+  }
+  /** Get a shade of the color */
+  shade(weight = 50): Color {
+    return new Color(0, 0, 0, 255).mix(this, weight);
+  }
+  /** Get a tint of the color */
+  tint(weight = 50): Color {
+    return new Color(255, 255, 255, 255).mix(this, weight);
+  }
   /** Get a detailed conversion of the color. */
   toJSON(): ColorData {
     return {
@@ -276,7 +305,7 @@ export class Color {
     return `rgba(${this.r},${this.g},${this.b},${this.a / 255})`;
   }
   static fromCmyk(c: number, m: number, y: number, k: number): Color {
-    const divi = (1 - (k / 100));
+    const divi = 1 - (k / 100);
     return new Color(
       255 * (1 - (c / 100)) * divi,
       255 * (1 - (m / 100)) * divi,

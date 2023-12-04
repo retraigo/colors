@@ -22,6 +22,9 @@ const STANDARD_ILLUMINANT = [
     1.088840
 ];
 const DELTA = 0.20689655172413793;
+const DELTA_SQUARE = 0.04280618311533888;
+const DELTA_CUBE = 0.008856451679035631;
+const DELTA_ADD = 0.13793103448275862;
 class Color {
     r;
     g;
@@ -30,26 +33,10 @@ class Color {
     constructor(rOrHex, g, b, a = 255){
         let red = 0, green = 0, blue = 0, alpha = 255;
         if (typeof rOrHex === "string") {
-            if (!/^#([A-Fa-f0-9]{3}){1,2}([A-Fa-f0-9]{2})?$/.test(rOrHex)) {
-                throw new TypeError(`Expected number or hex code. Got ${rOrHex}`);
-            }
-            let colors = rOrHex.slice(1).split("");
-            if (colors.length === 3) {
-                colors = [
-                    colors[0],
-                    colors[0],
-                    colors[1],
-                    colors[1],
-                    colors[2],
-                    colors[2]
-                ];
-            }
-            red = parseInt(`${colors[0]}${colors[1]}`, 16) || 0;
-            green = parseInt(`${colors[2]}${colors[3]}`, 16) || 0;
-            blue = parseInt(`${colors[4]}${colors[5]}`, 16) || 0;
-            if (colors[6] && colors[7]) {
-                alpha = parseInt(`${colors[6]}${colors[7]}`, 16) ?? 255;
-            }
+            [red, green, blue, alpha] = rgbaFromHex(rOrHex);
+        } else if (typeof rOrHex === "number" && typeof g === "undefined" && typeof b === "undefined") {
+            const hex = rOrHex.toString(16);
+            [red, green, blue, alpha] = rgbaFromHex(`#${hex}`);
         } else {
             red = rOrHex || 0;
             green = g || 0;
@@ -187,6 +174,26 @@ class Color {
         const l2 = that.luminance;
         return l1 > l2 ? (l1 + 0.5) / (l2 + 0.5) : (l2 + 0.5) / (l1 + 0.5);
     }
+    mix(that, percentage = 50) {
+        let p = percentage / 100;
+        if (p > 1) p = 1;
+        else if (p < 0) p = 0;
+        const w = p * 2 - 1;
+        const a = this.a - that.a;
+        const w1 = ((w * a === -1 ? w : (w + a) / (1 + w * a)) + 1) / 2.0;
+        const w2 = 1 - w1;
+        const r = Math.round(this.r * w1 + that.r * w2);
+        const g = Math.round(this.g * w1 + that.g * w2);
+        const b = Math.round(this.b * w1 + that.b * w2);
+        const alpha = parseFloat((this.a * p + that.a * (1 - p)).toFixed(8));
+        return new Color(r, g, b, alpha);
+    }
+    shade(weight = 50) {
+        return new Color(0, 0, 0, 255).mix(this, weight);
+    }
+    tint(weight = 50) {
+        return new Color(255, 255, 255, 255).mix(this, weight);
+    }
     toJSON() {
         return {
             rgba: [
@@ -207,6 +214,123 @@ class Color {
     toString() {
         return `rgba(${this.r},${this.g},${this.b},${this.a / 255})`;
     }
+    static fromCmyk(c, m, y, k) {
+        const divi = 1 - k / 100;
+        return new Color(255 * (1 - c / 100) * divi, 255 * (1 - m / 100) * divi, 255 * (1 - y / 100) * divi);
+    }
+    static fromHex(hex) {
+        const [red, green, blue, alpha] = rgbaFromHex(hex);
+        return new Color(red, green, blue, alpha);
+    }
+    static fromHsl(h, s, l) {
+        l = l / 100;
+        s = s / 100;
+        const chroma = (1 - Math.abs(2 * l - 1)) * s;
+        const h1 = h / 60;
+        const m = l - chroma / 2;
+        const x = chroma * (1 - Math.abs(h1 % 2 - 1));
+        let intermediate = [
+            0,
+            0,
+            0
+        ];
+        if (0 <= h1 && h1 < 1) intermediate = [
+            chroma,
+            x,
+            0
+        ];
+        else if (1 <= h1 && h1 < 2) intermediate = [
+            x,
+            chroma,
+            0
+        ];
+        else if (2 <= h1 && h1 < 3) intermediate = [
+            0,
+            chroma,
+            x
+        ];
+        else if (3 <= h1 && h1 < 4) intermediate = [
+            0,
+            x,
+            chroma
+        ];
+        else if (4 <= h1 && h1 < 5) intermediate = [
+            x,
+            0,
+            chroma
+        ];
+        else if (5 <= h1 && h1 < 6) intermediate = [
+            chroma,
+            0,
+            x
+        ];
+        const rgb = [
+            intermediate[0] + m,
+            intermediate[1] + m,
+            intermediate[2] + m
+        ];
+        return new Color(Math.round(rgb[0] * 255), Math.round(rgb[1] * 255), Math.round(rgb[2] * 255));
+    }
+    static fromHsv(h, s, v) {
+        s = s / 100;
+        v = v / 100;
+        const chroma = v * s;
+        const h1 = h / 60;
+        const m = v - chroma;
+        const x = chroma * (1 - Math.abs(h1 % 2 - 1));
+        let intermediate = [
+            0,
+            0,
+            0
+        ];
+        if (0 <= h1 && h1 < 1) intermediate = [
+            chroma,
+            x,
+            0
+        ];
+        else if (1 <= h1 && h1 < 2) intermediate = [
+            x,
+            chroma,
+            0
+        ];
+        else if (2 <= h1 && h1 < 3) intermediate = [
+            0,
+            chroma,
+            x
+        ];
+        else if (3 <= h1 && h1 < 4) intermediate = [
+            0,
+            x,
+            chroma
+        ];
+        else if (4 <= h1 && h1 < 5) intermediate = [
+            x,
+            0,
+            chroma
+        ];
+        else if (5 <= h1 && h1 < 6) intermediate = [
+            chroma,
+            0,
+            x
+        ];
+        const rgb = [
+            intermediate[0] + m,
+            intermediate[1] + m,
+            intermediate[2] + m
+        ];
+        return new Color(Math.round(rgb[0] * 255), Math.round(rgb[1] * 255), Math.round(rgb[2] * 255));
+    }
+    static fromLab(l, a, b) {
+        const [x, y, z] = xyzFromLab(l, a, b);
+        return Color.fromXyz(x, y, z);
+    }
+    static fromRgba(r, g, b, a = 255) {
+        return new Color(r, g, b, a);
+    }
+    static fromXyz(x, y, z) {
+        const [r, g, b] = rgbFromXyz(x, y, z).map((x)=>Math.round(fromLinear(x) * 255)).map((x)=>x < 0 ? 0 : x > 255 ? 255 : x);
+        return new Color(r, g, b);
+    }
     static toHex(n) {
         return `${(n | 1 << 8).toString(16).slice(1)}`;
     }
@@ -218,5 +342,80 @@ function labF(t) {
     if (t > 0.008856451679035631) return Math.cbrt(t);
     return t / (3 * 0.04280618311533888) + 0.13793103448275862;
 }
-export { Color as Color, DELTA as DELTA, meanDistance as meanDistance, STANDARD_ILLUMINANT as STANDARD_ILLUMINANT };
-export { fromLinear as fromLinear, toLinear as toLinear };
+function inverseLabF(t) {
+    if (t > 0.008856451679035631) return Math.pow(t, 3);
+    return 3 * 0.04280618311533888 * (t - 0.13793103448275862);
+}
+function rgbaFromHex(hex) {
+    if (!/^#([A-Fa-f0-9]{3}){1,2}([A-Fa-f0-9]{2})?$/.test(hex)) {
+        throw new TypeError(`Expected number or hex code. Got ${hex}`);
+    }
+    let colors = hex.slice(1).split("");
+    if (colors.length === 3) {
+        colors = [
+            colors[0],
+            colors[0],
+            colors[1],
+            colors[1],
+            colors[2],
+            colors[2]
+        ];
+    }
+    const red = parseInt(`${colors[0]}${colors[1]}`, 16) || 0;
+    const green = parseInt(`${colors[2]}${colors[3]}`, 16) || 0;
+    const blue = parseInt(`${colors[4]}${colors[5]}`, 16) || 0;
+    let alpha = 255;
+    if (colors[6] && colors[7]) {
+        alpha = parseInt(`${colors[6]}${colors[7]}`, 16) ?? 255;
+    }
+    return [
+        red,
+        green,
+        blue,
+        alpha
+    ];
+}
+function rgbFromXyz(x, y, z) {
+    return [
+        3.2406 * x + -1.5372 * y + -0.4986 * z,
+        -0.9689 * x + 1.8758 * y + 0.0415 * z,
+        0.0557 * x + -0.2040 * y + 1.0570 * z
+    ];
+}
+function xyzFromLab(l, a, b) {
+    const add = (l + 16) / 116;
+    const x = STANDARD_ILLUMINANT[0] * inverseLabF(add + a / 500);
+    const y = STANDARD_ILLUMINANT[1] * inverseLabF(add);
+    const z = STANDARD_ILLUMINANT[2] * inverseLabF(add - b / 200);
+    return [
+        x,
+        y,
+        z
+    ];
+}
+function findClosestColor(color, palette) {
+    const closest = {
+        dist: Infinity,
+        i: 0
+    };
+    let i = 0;
+    while(i < palette.length){
+        const m = meanDistance(color, palette[i]);
+        if (m < closest.dist) {
+            closest.dist = m;
+            closest.i = i;
+        }
+        i += 1;
+    }
+    return palette[closest.i];
+}
+export { STANDARD_ILLUMINANT as STANDARD_ILLUMINANT };
+export { DELTA as DELTA };
+export { DELTA_SQUARE as DELTA_SQUARE };
+export { DELTA_CUBE as DELTA_CUBE };
+export { DELTA_ADD as DELTA_ADD };
+export { Color as Color };
+export { meanDistance as meanDistance };
+export { rgbFromXyz as rgbFromXyz };
+export { xyzFromLab as xyzFromLab };
+export { findClosestColor as findClosestColor };
