@@ -1,6 +1,6 @@
 # colors
 
-Color conversion and stuff in TypeScript
+Color conversion, shade/tint generation, color quantization, and more in TypeScript
 
 ## Usage
 
