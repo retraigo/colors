@@ -22,9 +22,6 @@ const STANDARD_ILLUMINANT = [
     1.088840
 ];
 const DELTA = 0.20689655172413793;
-const DELTA_SQUARE = 0.04280618311533888;
-const DELTA_CUBE = 0.008856451679035631;
-const DELTA_ADD = 0.13793103448275862;
 class Color {
     r;
     g;
@@ -393,29 +390,431 @@ function xyzFromLab(l, a, b) {
         z
     ];
 }
-function findClosestColor(color, palette) {
-    const closest = {
-        dist: Infinity,
-        i: 0
-    };
+export { Color as Color, DELTA as DELTA, meanDistance as meanDistance, STANDARD_ILLUMINANT as STANDARD_ILLUMINANT };
+class ColorHistogram {
+    #data;
+    constructor(){
+        this.#data = new Uint32Array(32768);
+    }
+    #getIndex(color) {
+        const index = (color.r >> 3 << 10) + (color.g >> 3 << 5) + (color.b >> 3);
+        return index;
+    }
+    get(color) {
+        const index = this.#getIndex(color);
+        return this.#data[index];
+    }
+    getQuantized(color) {
+        const index = (color[0] << 10) + (color[1] << 5) + color[2];
+        return this.#data[index];
+    }
+    add(color, amount) {
+        const index = this.#getIndex(color);
+        return Atomics.add(this.#data, index, amount);
+    }
+    get raw() {
+        return this.#data;
+    }
+    get length() {
+        return this.#data.filter((x)=>x).length;
+    }
+    static getColor(index) {
+        const ri = index >> 10;
+        const gi = index - (ri << 10) >> 5;
+        const bi = index - (ri << 10) - (gi << 5);
+        return new Color(ri << 3, gi << 3, bi << 3, 255);
+    }
+}
+function getHistogram(colors) {
+    const histo = new ColorHistogram();
     let i = 0;
-    while(i < palette.length){
-        const m = meanDistance(color, palette[i]);
-        if (m < closest.dist) {
-            closest.dist = m;
-            closest.i = i;
-        }
+    while(i < colors.length){
+        const hIndex = colors[i];
+        histo.add(hIndex, 1);
         i += 1;
     }
-    return palette[closest.i];
+    return histo;
 }
-export { STANDARD_ILLUMINANT as STANDARD_ILLUMINANT };
-export { DELTA as DELTA };
-export { DELTA_SQUARE as DELTA_SQUARE };
-export { DELTA_CUBE as DELTA_CUBE };
-export { DELTA_ADD as DELTA_ADD };
-export { Color as Color };
-export { meanDistance as meanDistance };
-export { rgbFromXyz as rgbFromXyz };
-export { xyzFromLab as xyzFromLab };
-export { findClosestColor as findClosestColor };
+function getAverageColor(vbox, histo) {
+    let total = 0;
+    let totalR = 0, totalG = 0, totalB = 0;
+    let ri = vbox.r.min;
+    while(ri <= vbox.r.max){
+        let gi = vbox.g.min;
+        while(gi <= vbox.g.max){
+            let bi = vbox.b.min;
+            while(bi <= vbox.b.max){
+                const count = histo.getQuantized([
+                    ri,
+                    gi,
+                    bi
+                ]) || 0;
+                total += count;
+                totalR += count * (ri + 0.5) * 8;
+                totalG += count * (gi + 0.5) * 8;
+                totalB += count * (bi + 0.5) * 8;
+                bi += 1;
+            }
+            gi += 1;
+        }
+        ri += 1;
+    }
+    if (total) {
+        return new Color(~~(totalR / total), ~~(totalG / total), ~~(totalB / total), 255);
+    }
+    return new Color(Math.trunc(8 * (vbox.r.min + vbox.r.max + 1) / 2), Math.trunc(8 * (vbox.g.min + vbox.g.max + 1) / 2), Math.trunc(8 * (vbox.b.min + vbox.b.max + 1) / 2), 255);
+}
+function getColorRange(colors) {
+    const range = {
+        r: {
+            min: 1000,
+            max: 0
+        },
+        g: {
+            min: 1000,
+            max: 0
+        },
+        b: {
+            min: 1000,
+            max: 0
+        }
+    };
+    let i = 0;
+    while(i < colors.length){
+        if (colors[i].r >> 3 < range.r.min) range.r.min = colors[i].r >> 3;
+        if (colors[i].r >> 3 > range.r.max) range.r.max = colors[i].r >> 3;
+        if (colors[i].g >> 3 < range.g.min) range.g.min = colors[i].g >> 3;
+        if (colors[i].g >> 3 > range.g.max) range.g.max = colors[i].g >> 3;
+        if (colors[i].b >> 3 < range.b.min) range.b.min = colors[i].b >> 3;
+        if (colors[i].b >> 3 > range.b.max) range.b.max = colors[i].b >> 3;
+        i += 1;
+    }
+    return range;
+}
+function quantizeByMedianCut(palette, extractCount) {
+    const vbox = getColorRange(palette);
+    const histo = getHistogram(palette);
+    return quantize(vbox, histo, extractCount);
+}
+function quantizeByPopularity(palette, extractCount) {
+    const histo = getHistogram(palette);
+    const result = [];
+    histo.raw.forEach((v, i)=>{
+        if (v) result.push([
+            i,
+            v
+        ]);
+    });
+    result.sort((a, b)=>b[1] - a[1]);
+    const res = [];
+    for (const i of result.slice(0, extractCount)){
+        res.push(ColorHistogram.getColor(i[0]));
+    }
+    return res;
+}
+export { fromLinear as fromLinear, toLinear as toLinear };
+export { quantizeByMedianCut as quantizeByMedianCut, quantizeByPopularity as quantizeByPopularity };
+function quantize(vbox, histo, extractCount) {
+    const vboxes = [
+        vbox
+    ];
+    let i = 0;
+    const firstExtractCount = ~~(extractCount >> 1);
+    let generated = 1;
+    while(i < 1000){
+        const lastBox = vboxes.shift();
+        if (!lastBox) break;
+        if (!vboxSize(lastBox, histo)) {
+            vboxes.push(lastBox);
+            i += 1;
+            continue;
+        }
+        const cut = medianCutApply(lastBox, histo);
+        if (cut) {
+            vboxes.push(cut[0], cut[1]);
+            generated += 1;
+        } else vboxes.push(lastBox);
+        if (generated >= firstExtractCount) break;
+    }
+    vboxes.sort((a, b)=>vboxSize(b, histo) * vboxVolume(b) - vboxSize(a, histo) * vboxVolume(a));
+    const secondExtractCount = extractCount - vboxes.length;
+    i = 0;
+    generated = 0;
+    while(i < 1000){
+        const lastBox = vboxes.shift();
+        if (!lastBox) break;
+        if (!vboxSize(lastBox, histo)) {
+            vboxes.push(lastBox);
+            i += 1;
+            continue;
+        }
+        const cut = medianCutApply(lastBox, histo);
+        if (cut) {
+            vboxes.push(cut[0], cut[1]);
+            generated += 1;
+        } else vboxes.push(lastBox);
+        if (generated >= secondExtractCount) break;
+    }
+    vboxes.sort((a, b)=>vboxSize(b, histo) - vboxSize(a, histo));
+    return vboxes.map((x)=>getAverageColor(x, histo)).slice(0, extractCount);
+}
+function vboxSize(vbox, histo) {
+    let count = 0;
+    let ri = vbox.r.min;
+    while(ri <= vbox.r.max){
+        let gi = vbox.g.min;
+        while(gi <= vbox.g.max){
+            let bi = vbox.b.min;
+            while(bi <= vbox.b.max){
+                count += histo.get(new Color(ri, gi, bi, 255)) || 0;
+                bi += 1;
+            }
+            gi += 1;
+        }
+        ri += 1;
+    }
+    return count;
+}
+function vboxVolume(vbox) {
+    return ~~(vbox.r.max - vbox.r.min) * ~~(vbox.g.max - vbox.g.min) * ~~(vbox.b.max - vbox.b.min);
+}
+function medianCutApply(vbox, histo) {
+    const count = vboxSize(vbox, histo);
+    if (!count || count === 1) return false;
+    const rw = vbox.r.max - vbox.r.min + 1;
+    const gw = vbox.g.max - vbox.g.min + 1;
+    const bw = vbox.b.max - vbox.b.min + 1;
+    const axis = Math.max(rw, gw, bw);
+    const sumAlongAxis = [];
+    let totalSum = 0;
+    switch(axis){
+        case rw:
+            {
+                let i = vbox.r.min;
+                while(i <= vbox.r.max){
+                    let tempSum = 0;
+                    let j = vbox.g.min;
+                    while(j < vbox.g.max){
+                        let k = vbox.b.min;
+                        while(k < vbox.b.max){
+                            tempSum += histo.getQuantized([
+                                i,
+                                j,
+                                k
+                            ]) || 0;
+                            k += 1;
+                        }
+                        j += 1;
+                    }
+                    totalSum += tempSum;
+                    sumAlongAxis[i] = totalSum;
+                    i += 1;
+                }
+                break;
+            }
+        case gw:
+            {
+                let i = vbox.g.min;
+                while(i <= vbox.g.max){
+                    let tempSum = 0;
+                    let j = vbox.r.min;
+                    while(j < vbox.r.max){
+                        let k = vbox.b.min;
+                        while(k < vbox.b.max){
+                            tempSum += histo.getQuantized([
+                                j,
+                                i,
+                                k
+                            ]) || 0;
+                            k += 1;
+                        }
+                        j += 1;
+                    }
+                    totalSum += tempSum;
+                    sumAlongAxis[i] = totalSum;
+                    i += 1;
+                }
+                break;
+            }
+        default:
+            {
+                let i = vbox.b.min;
+                while(i <= vbox.b.max){
+                    let tempSum = 0;
+                    let j = vbox.r.min;
+                    while(j < vbox.r.max){
+                        let k = vbox.g.min;
+                        while(k < vbox.g.max){
+                            tempSum += histo.getQuantized([
+                                j,
+                                k,
+                                i
+                            ]) || 0;
+                            k += 1;
+                        }
+                        j += 1;
+                    }
+                    totalSum += tempSum;
+                    sumAlongAxis[i] = totalSum;
+                    i += 1;
+                }
+                break;
+            }
+    }
+    switch(axis){
+        case rw:
+            {
+                let i = vbox.r.min;
+                while(i <= vbox.r.max){
+                    if (sumAlongAxis[i] < totalSum / 2) {
+                        let cutAt = 0;
+                        const vbox1 = {
+                            r: {
+                                min: vbox.r.min,
+                                max: vbox.r.max
+                            },
+                            g: {
+                                min: vbox.g.min,
+                                max: vbox.g.max
+                            },
+                            b: {
+                                min: vbox.b.min,
+                                max: vbox.b.max
+                            }
+                        };
+                        const vbox2 = {
+                            r: {
+                                min: vbox.r.min,
+                                max: vbox.r.max
+                            },
+                            g: {
+                                min: vbox.g.min,
+                                max: vbox.g.max
+                            },
+                            b: {
+                                min: vbox.b.min,
+                                max: vbox.b.max
+                            }
+                        };
+                        const left = i - vbox.r.min;
+                        const right = vbox.r.max - i;
+                        if (left <= right) {
+                            cutAt = Math.min(vbox.r.max - 1, Math.trunc(i + right / 2));
+                        } else cutAt = Math.max(vbox.r.min, Math.trunc(i - 1 - left / 2));
+                        while(!sumAlongAxis[cutAt])cutAt += 1;
+                        vbox1.r.max = cutAt;
+                        vbox2.r.min = cutAt + 1;
+                        return [
+                            vbox1,
+                            vbox2
+                        ];
+                    }
+                    i += 1;
+                }
+                break;
+            }
+        case gw:
+            {
+                let i = vbox.g.min;
+                while(i <= vbox.g.max){
+                    if (sumAlongAxis[i] < totalSum / 2) {
+                        let cutAt = 0;
+                        const vbox1 = {
+                            r: {
+                                min: vbox.r.min,
+                                max: vbox.r.max
+                            },
+                            g: {
+                                min: vbox.g.min,
+                                max: vbox.g.max
+                            },
+                            b: {
+                                min: vbox.b.min,
+                                max: vbox.b.max
+                            }
+                        };
+                        const vbox2 = {
+                            r: {
+                                min: vbox.r.min,
+                                max: vbox.r.max
+                            },
+                            g: {
+                                min: vbox.g.min,
+                                max: vbox.g.max
+                            },
+                            b: {
+                                min: vbox.b.min,
+                                max: vbox.b.max
+                            }
+                        };
+                        const left = i - vbox.g.min;
+                        const right = vbox.g.max - i;
+                        if (left <= right) {
+                            cutAt = Math.min(vbox.g.max - 1, Math.trunc(i + right / 2));
+                        } else cutAt = Math.max(vbox.g.min, Math.trunc(i - 1 - left / 2));
+                        while(!sumAlongAxis[cutAt])cutAt += 1;
+                        vbox1.g.max = cutAt;
+                        vbox2.g.min = cutAt + 1;
+                        return [
+                            vbox1,
+                            vbox2
+                        ];
+                    }
+                    i += 1;
+                }
+                break;
+            }
+        default:
+            {
+                let i = vbox.b.min;
+                while(i <= vbox.b.max){
+                    if (sumAlongAxis[i] < totalSum / 2) {
+                        let cutAt = 0;
+                        const vbox1 = {
+                            r: {
+                                min: vbox.r.min,
+                                max: vbox.r.max
+                            },
+                            g: {
+                                min: vbox.g.min,
+                                max: vbox.g.max
+                            },
+                            b: {
+                                min: vbox.b.min,
+                                max: vbox.b.max
+                            }
+                        };
+                        const vbox2 = {
+                            r: {
+                                min: vbox.r.min,
+                                max: vbox.r.max
+                            },
+                            g: {
+                                min: vbox.g.min,
+                                max: vbox.g.max
+                            },
+                            b: {
+                                min: vbox.b.min,
+                                max: vbox.b.max
+                            }
+                        };
+                        const left = i - vbox.b.min;
+                        const right = vbox.b.max - i;
+                        if (left <= right) {
+                            cutAt = Math.min(vbox.b.max - 1, Math.trunc(i + right / 2));
+                        } else cutAt = Math.max(vbox.b.min, Math.trunc(i - 1 - left / 2));
+                        while(!sumAlongAxis[cutAt])cutAt += 1;
+                        vbox1.b.max = cutAt;
+                        vbox2.b.min = cutAt + 1;
+                        return [
+                            vbox1,
+                            vbox2
+                        ];
+                    }
+                    i += 1;
+                }
+                break;
+            }
+    }
+    return false;
+}
