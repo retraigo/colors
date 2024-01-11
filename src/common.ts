@@ -47,7 +47,7 @@ export function toHex(n: number): string {
  * along with Euclidean distance but I chose to stay with
  * distance for performance.
  */
-export function findClosestColor(color: number[], palette: Color4[]): Color4 {
+export function findClosestColor(color: number[], palette: number[][]): number[] {
   const closest = {
     dist: Infinity,
     i: 0,
