@@ -2,6 +2,7 @@
 
 import { Color3, Color4, STANDARD_ILLUMINANT, inverseLabF } from "./common.ts";
 
+/** Convert HSL color to RGB */
 export function rgbFromHsl(h: number, s: number, l: number): Color3 {
   l = l / 100;
   s = s / 100;
@@ -29,6 +30,7 @@ export function rgbFromHsl(h: number, s: number, l: number): Color3 {
   ];
 }
 
+/** Convert HSV color to RGB */
 export function rgbFromHsv(h: number, s: number, v: number): Color3 {
   s = s / 100;
   v = v / 100;
@@ -56,6 +58,7 @@ export function rgbFromHsv(h: number, s: number, v: number): Color3 {
   ];
 }
 
+/** Convert Hexadecimal string to RGBA */
 export function rgbaFromHex(hex: string): Color4 {
   if (!/^#([A-Fa-f0-9]{3}){1,2}([A-Fa-f0-9]{2})?$/.test(hex)) {
     throw new TypeError(`Expected number or hex code. Got ${hex}`);
@@ -64,7 +67,6 @@ export function rgbaFromHex(hex: string): Color4 {
   if (colors.length === 3) {
     colors = [colors[0], colors[0], colors[1], colors[1], colors[2], colors[2]];
   }
-  // Convert hexadecimal to decimal
   const red = parseInt(`${colors[0]}${colors[1]}`, 16) || 0;
   const green = parseInt(`${colors[2]}${colors[3]}`, 16) || 0;
   const blue = parseInt(`${colors[4]}${colors[5]}`, 16) || 0;
@@ -94,6 +96,7 @@ export function rgbFromXyz(
   ];
 }
 
+/** Convert CIE L*a*b* to CIE XYZ */
 export function xyzFromLab(
   l: number,
   a: number,
@@ -107,6 +110,7 @@ export function xyzFromLab(
   return [x, y, z];
 }
 
+/** Convert CMYK to RGB */
 export function rgbFromCmyk(
   c: number,
   m: number,
