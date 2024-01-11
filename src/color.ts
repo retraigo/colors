@@ -1,6 +1,6 @@
 // Fully functional, specially for working with Images
 
-import { toLinear } from "./util/linear.ts";
+import { fromLinear, toLinear } from "./util/linear.ts";
 import { Color3, Color4, STANDARD_ILLUMINANT, labF, toHex } from "./common.ts";
 import { rgbFromHsv } from "./conversion.ts";
 
@@ -108,13 +108,22 @@ export function hue(color: Color3 | Color4) {
   return hue * 60;
 }
 
+/** Invert HSV */
+export function invert(color: Color3): Color3;
+export function invert(color: Color4): Color4;
+export function invert(color: Color3 | Color4): Color3 | Color4 {
+  return color.length === 3
+    ? [255 - color[0], 255 - color[1], 255 - color[2]]
+    : [255 - color[0], 255 - color[1], 255 - color[2], color[3]];
+}
+
 /** Invert a color linearly */
 export function invertLinear(color: Color3): Color3;
 export function invertLinear(color: Color4): Color4;
 export function invertLinear(color: Color3 | Color4): Color3 | Color4 {
-  return color.length === 3
-    ? [255 - color[0], 255 - color[1], 255 - color[2]]
-    : [255 - color[0], 255 - color[1], 255 - color[2], color[3]];
+  const linear = linearRgb(color);
+  const inv = linear.map((x) => ~~(fromLinear(1 - x) * 255)) as Color3;
+  return color.length === 3 ? inv : [inv[0], inv[1], inv[2], color[3]];
 }
 
 /** Bright colors darken, dark colors brighten. */
@@ -155,7 +164,7 @@ export function lightness(color: Color3 | Color4) {
   return (max(color) + min(color)) / 2;
 }
 /** Get linear rgb values */
-export function linearRgb(color: Color3 | Color4) {
+export function linearRgb(color: Color3 | Color4): Color3 {
   return [
     toLinear(color[0] / 255),
     toLinear(color[1] / 255),

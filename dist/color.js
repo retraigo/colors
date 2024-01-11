@@ -309,7 +309,7 @@ function hue(color) {
     if (hue < 0) return hue * 60 + 360;
     return hue * 60;
 }
-function invertLinear(color) {
+function invert(color) {
     return color.length === 3 ? [
         255 - color[0],
         255 - color[1],
@@ -318,6 +318,16 @@ function invertLinear(color) {
         255 - color[0],
         255 - color[1],
         255 - color[2],
+        color[3]
+    ];
+}
+function invertLinear(color) {
+    const linear = linearRgb(color);
+    const inv = linear.map((x)=>~~(fromLinear(1 - x) * 255));
+    return color.length === 3 ? inv : [
+        inv[0],
+        inv[1],
+        inv[2],
         color[3]
     ];
 }
@@ -447,6 +457,7 @@ export { hex as hex };
 export { hsl as hsl };
 export { hsv as hsv };
 export { hue as hue };
+export { invert as invert };
 export { invertLinear as invertLinear };
 export { invertValue as invertValue };
 export { json as json };
