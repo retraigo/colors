@@ -1,4 +1,4 @@
-import { invertLinear, invertValue, string, rgbaFromHex, invert } from "../mod.ts";
+import { invertLinear, invertValue, string, rgbaFromHex } from "../mod.ts";
 import { createCanvas } from "https://deno.land/x/skia_canvas@0.5.5/mod.ts";
 
 const i = createCanvas(300, 100);
@@ -22,7 +22,7 @@ ctx.fillRect(100, 0, 200, 100);
 ctx.fillStyle = "black";
 ctx.fillText(`Linear Invert`, 100 + 50, 50, 100);
 
-const inv2 = invert(c);
+const inv2 = invertValue(c);
 ctx.fillStyle = string(inv2);
 ctx.fillRect(200, 0, 300, 100);
 
