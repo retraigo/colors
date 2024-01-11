@@ -1,17 +1,10 @@
-import { fromLinear, toLinear } from "./util/linear.ts";
+// Fully functional, specially for working with Images
 
-/** Standard illuminant D65 */
-export const STANDARD_ILLUMINANT = [0.950489, 1, 1.088840];
+import { toLinear } from "./util/linear.ts";
+import { Color3, Color4, STANDARD_ILLUMINANT, labF, toHex } from "./common.ts";
+import { rgbFromHsv } from "./conversion.ts";
 
-/** 6 / 29 */
-export const DELTA = 0.20689655172413793;
-export const DELTA_SQUARE = 0.04280618311533888;
-export const DELTA_CUBE = 0.008856451679035631;
-
-/** 4 / 29 */
-export const DELTA_ADD = 0.13793103448275862;
-
-export interface ColorData {
+export type ColorData = {
   /** sRGB color space */
   rgba: [number, number, number, number];
   /** Hue, Chroma, Grayscale */
@@ -28,466 +21,223 @@ export interface ColorData {
   xyz: [number, number, number];
   /** CIE L*a*b* color space */
   lab: [number, number, number];
+};
+
+/** Get average of colors. Can be used for grayscale. */
+export function average(color: Color3 | Color4) {
+  return Math.trunc((color[0] + color[1] + color[2]) / 3);
+}
+/** Calculate chroma */
+export function chroma(color: Color3 | Color4) {
+  return max(color) - min(color);
 }
 
-/** General class for RGBA colors */
-export class Color {
-  /** Red value of color */
-  r: number;
-  /** Green value of color */
-  g: number;
-  /** Blue value of color */
-  b: number;
-  /** Alpha (opacity) of color */
-  a: number;
-  /** Construct a color from hex code */
-  constructor(hex: string);
-  /** Construct a color from hex number */
-  constructor(hex: number);
-  /** Construct a color from rgba values */
-  constructor(r: number, g: number, b: number, a?: number);
-  constructor(rOrHex: number | string, g?: number, b?: number, a = 255) {
-    let red = 0, green = 0, blue = 0, alpha = 255;
-    if (typeof rOrHex === "string") {
-      [red, green, blue, alpha] = rgbaFromHex(rOrHex);
-    } else if (
-      typeof rOrHex === "number" && typeof g === "undefined" &&
-      typeof b === "undefined"
-    ) {
-      const hex = rOrHex.toString(16);
-      [red, green, blue, alpha] = rgbaFromHex(`#${hex}`);
-    } else {
-      red = rOrHex || 0;
-      green = g || 0;
-      blue = b || 0;
-      alpha = a ?? 255;
-    }
-    this.r = red;
-    this.g = green;
-    this.b = blue;
-    this.a = alpha;
-  }
-  /** Get the average of all colors
-   * Can also be used instead of `grayscale` using
-   * ```ts
-   * const color = new Color(r, g, b, a);
-   * const avg = color.average;
-   * const grayscaleColor = new Color(avg, avg, avg, a);
-   * ```
-   */
-  get average() {
-    return Math.trunc((this.r + this.g + this.b) / 3);
-  }
-  /** Calculate chroma */
-  get chroma() {
-    return (this.max - this.min);
-  }
-  get cmyk(): [number, number, number, number] {
-    const r = this.r / 255;
-    const g = this.g / 255;
-    const b = this.b / 255;
+/** Convert RGB(A) to CMYK */
+export function cmyk(color: Color3 | Color4): [number, number, number, number] {
+  const r = color[0] / 255;
+  const g = color[1] / 255;
+  const b = color[2] / 255;
 
-    const k = 1 - Math.max(r, g, b);
-    const max = this.max;
-    return [
-      Math.round(((1 - r - k) / max) * 100),
-      Math.round(((1 - g - k) / max) * 100),
-      Math.round(((1 - b - k) / max) * 100),
-      Math.round(k * 100),
-    ];
-  }
-  /**
-   * Convert to grayscale using luminance
-   */
-  get grayscale(): Color {
-    // Can alternatively be done using
-    // this.lightness and this.average
-    const l = Math.trunc(fromLinear(this.luminance) * 255);
-    return new Color(l, l, l, this.a);
-  }
-  get hcg(): [number, number, number] {
-    const chroma = this.chroma;
-    return [
-      Math.round(this.hue),
-      chroma,
-      chroma < 1 ? this.min / (1 - chroma) : 0,
-    ];
-  }
-  get hex() {
-    return `#${Color.toHex(this.r)}${Color.toHex(this.g)}${
-      Color.toHex(this.b)
-    }${Color.toHex(this.a)}`;
-  }
-  /** Hue, Saturation, Lightness */
-  get hsl(): [number, number, number] {
-    const s = this.saturation;
-
-    return [
-      Math.round(this.hue),
-      Math.trunc((s * 10000) / 100),
-      Math.trunc((this.lightness * 10000) / 100),
-    ];
-  }
-  /** Hue, Saturation, Value */
-  get hsv(): [number, number, number] {
-    const s = this.saturation;
-    const l = this.lightness;
-    const v = l + (s * Math.min(l, 1 - l));
-
-    return [
-      Math.round(this.hue),
-      !v ? 0 : Math.round((2 * (1 - (l / v))) * 100),
-      Math.round(v * 100),
-    ];
-  }
-  /** Calculate hue using chroma */
-  get hue() {
-    const max = this.max;
-    const c = this.chroma;
-    // No color
-    if (!c) return 0;
-    const r = this.r / 255;
-    const g = this.g / 255;
-    const b = this.b / 255;
-    const hue = max === r
-      ? (g - b) / c
-      : max === g
-      ? ((b - r) / c) + 2
-      : ((r - g) / c) + 4;
-    if (hue < 0) return (hue * 60) + 360;
-    return hue * 60;
-  }
-  get invert() {
-    return new Color(255 - this.r, 255 - this.g, 255 - this.b, this.a);
-  }
-  /** CIE L*a*b color space */
-  get lab(): [number, number, number] {
-    const [x, y, z] = this.xyz;
-
-    const xxn = labF(x / STANDARD_ILLUMINANT[0]);
-    const yyn = labF(y / STANDARD_ILLUMINANT[1]);
-    const zzn = labF(z / STANDARD_ILLUMINANT[2]);
-
-    return [
-      (116 * yyn) - 16,
-      500 * (xxn - yyn),
-      200 * (yyn - zzn),
-    ];
-  }
-  /**
-   * Get lightness of image. Can also be used instead of `grayscale` using
-   * ```ts
-   * const color = new Color(r, g, b, a);
-   * const l = color.lightness * 255;
-   * const grayscaleColor = new Color(l, l, l, a);
-   * ```
-   */
-  get lightness() {
-    return ((this.max + this.min) / 2);
-  }
-  /** Get linear rgb values */
-  get linearRgb() {
-    return [
-      toLinear(this.r / 255),
-      toLinear(this.g / 255),
-      toLinear(this.b / 255),
-    ];
-  }
-  /** Calculate luminance */
-  get luminance(): number {
-    const [r, g, b] = this.linearRgb;
-    return (r * 0.2126) + (g * 0.7152) + (b * 0.0722);
-    // the below can also be used
-    // return Math.sqrt((0.299 * r * r) + (0.587 * g * g) + (0.114 * b * b));
-  }
-  /** Get maximum of r, g, b */
-  get max(): number {
-    return Math.max(this.r, this.g, this.b) / 255;
-  }
-  /** Get minimum of r, g, b */
-  get min(): number {
-    return Math.min(this.r, this.g, this.b) / 255;
-  }
-  /** Get perceived lightness */
-  get perceivedLightness(): number {
-    const lum = this.luminance;
-    if (lum <= (216 / 24389)) {
-      return lum * (24389 / 27);
-    }
-
-    return Math.pow(lum, 1 / 3) * 116 - 16;
-  }
-  /** Get saturation */
-  get saturation() {
-    const c = this.chroma;
-    const l = this.lightness;
-    // No color
-    if (!c) return 0;
-    return (this.max - l) / Math.min(l, 1 - l);
-  }
-  /** CIE 1931 XYZ */
-  get xyz(): [number, number, number] {
-    const [r, g, b] = this.linearRgb;
-
-    const x = (0.4124 * r) + (0.3576 * g) + (0.1805 * b);
-    const y = (0.2126 * r) + (0.7152 * g) + (0.0722 * b);
-    const z = (0.0193 * r) + (0.1192 * g) + (0.9505 * b);
-    return [x, y, z];
-  }
-  /*
-  xyz is a very bad idea
-
-  brighten(amt: number): Color {
-    let [x, y, z] = this.xyz;
-    y += y * amt;
-    if(y > 1) y = 1
-    if(y < 0) y = 0
-    const [r, g, b] = rgbFromXyz(x, y, z)
-    return new Color(
-      Math.round(fromLinear(r) * 255),
-      Math.round(fromLinear(g) * 255),
-      Math.round(fromLinear(b) * 255),
-      this.a,
-    );
-  }
-  */
-  /** Get contrast ratio  */
-  contrast(that: Color): number {
-    const l1 = this.luminance;
-    const l2 = that.luminance;
-    return l1 > l2 ? (l1 + 0.5) / (l2 + 0.5) : (l2 + 0.5) / (l1 + 0.5);
-  }
-  /**
-   * Mix with a different color.
-   * Copyright (c) 2006-2009 Hampton Catlin, Natalie Weizenbaum, and Chris Eppstein
-   * http://sass-lang.com
-   * @see https://github.com/less/less.js/blob/cae5021358a5fca932c32ed071f652403d07def8/lib/less/functions/color.js#L302
-   */
-  mix(that: Color, percentage = 50): Color {
-    let p = percentage / 100;
-    if (p > 1) p = 1;
-    else if (p < 0) p = 0;
-    const w = p * 2 - 1;
-    const a = this.a - that.a;
-
-    const w1 = ((w * a === -1 ? w : (w + a) / (1 + w * a)) + 1) / 2.0;
-    const w2 = 1 - w1;
-
-    const r = Math.round(this.r * w1 + that.r * w2);
-    const g = Math.round(this.g * w1 + that.g * w2);
-    const b = Math.round(this.b * w1 + that.b * w2);
-    const alpha = parseFloat((this.a * p + that.a * (1 - p)).toFixed(8));
-    return new Color(r, g, b, alpha);
-  }
-  /** Get a shade of the color */
-  shade(weight = 50): Color {
-    return new Color(0, 0, 0, 255).mix(this, weight);
-  }
-  /** Get a tint of the color */
-  tint(weight = 50): Color {
-    return new Color(255, 255, 255, 255).mix(this, weight);
-  }
-  /** Get a detailed conversion of the color. */
-  toJSON(): ColorData {
-    return {
-      rgba: [this.r, this.g, this.b, this.a],
-      hcg: this.hcg,
-      hsl: this.hsl,
-      hsv: this.hsv,
-      cmyk: this.cmyk,
-      hex: this.a === 255 ? this.hex.slice(0, 7) : this.hex,
-      xyz: this.xyz,
-      lab: this.lab,
-    };
-  }
-
-  toString(): string {
-    return `rgba(${this.r},${this.g},${this.b},${this.a / 255})`;
-  }
-  static fromCmyk(c: number, m: number, y: number, k: number): Color {
-    const divi = 1 - (k / 100);
-    return new Color(
-      255 * (1 - (c / 100)) * divi,
-      255 * (1 - (m / 100)) * divi,
-      255 * (1 - (y / 100)) * divi,
-    );
-  }
-  static fromHex(hex: string): Color {
-    const [red, green, blue, alpha] = rgbaFromHex(hex);
-    return new Color(red, green, blue, alpha);
-  }
-  static fromHsl(h: number, s: number, l: number): Color {
-    l = l / 100;
-    s = s / 100;
-    const chroma = (1 - Math.abs((2 * l) - 1)) * s;
-    const h1 = h / 60;
-    const m = l - (chroma / 2);
-
-    const x = chroma * (1 - Math.abs((h1 % 2) - 1));
-
-    let intermediate = [0, 0, 0];
-
-    if (0 <= h1 && h1 < 1) intermediate = [chroma, x, 0];
-    else if (1 <= h1 && h1 < 2) intermediate = [x, chroma, 0];
-    else if (2 <= h1 && h1 < 3) intermediate = [0, chroma, x];
-    else if (3 <= h1 && h1 < 4) intermediate = [0, x, chroma];
-    else if (4 <= h1 && h1 < 5) intermediate = [x, 0, chroma];
-    else if (5 <= h1 && h1 < 6) intermediate = [chroma, 0, x];
-
-    const rgb = [intermediate[0] + m, intermediate[1] + m, intermediate[2] + m];
-
-    return new Color(
-      Math.round(rgb[0] * 255),
-      Math.round(rgb[1] * 255),
-      Math.round(rgb[2] * 255),
-    );
-  }
-  static fromHsv(h: number, s: number, v: number): Color {
-    s = s / 100;
-    v = v / 100;
-    const chroma = v * s;
-    const h1 = h / 60;
-    const m = v - chroma;
-
-    const x = chroma * (1 - Math.abs((h1 % 2) - 1));
-
-    let intermediate = [0, 0, 0];
-
-    if (0 <= h1 && h1 < 1) intermediate = [chroma, x, 0];
-    else if (1 <= h1 && h1 < 2) intermediate = [x, chroma, 0];
-    else if (2 <= h1 && h1 < 3) intermediate = [0, chroma, x];
-    else if (3 <= h1 && h1 < 4) intermediate = [0, x, chroma];
-    else if (4 <= h1 && h1 < 5) intermediate = [x, 0, chroma];
-    else if (5 <= h1 && h1 < 6) intermediate = [chroma, 0, x];
-
-    const rgb = [intermediate[0] + m, intermediate[1] + m, intermediate[2] + m];
-
-    return new Color(
-      Math.round(rgb[0] * 255),
-      Math.round(rgb[1] * 255),
-      Math.round(rgb[2] * 255),
-    );
-  }
-  static fromLab(l: number, a: number, b: number): Color {
-    const [x, y, z] = xyzFromLab(l, a, b);
-    return Color.fromXyz(x, y, z);
-  }
-  /** Redundant static method for conversion from sRGB color space */
-  static fromRgba(r: number, g: number, b: number): Color;
-  static fromRgba(r: number, g: number, b: number, a = 255): Color {
-    return new Color(r, g, b, a);
-  }
-  /** Convert from CIE XYZ color space */
-  static fromXyz(x: number, y: number, z: number): Color {
-    const [r, g, b] = rgbFromXyz(x, y, z).map((x) =>
-      Math.round(fromLinear(x) * 255)
-    ).map((x) => x < 0 ? 0 : x > 255 ? 255 : x);
-    return new Color(
-      r,
-      g,
-      b,
-    );
-  }
-  static toHex(n: number): string {
-    return `${(n | 1 << 8).toString(16).slice(1)}`;
-  }
-}
-
-/** Calculate mean distance between two colors */
-export function meanDistance(from: Color, to: Color): number {
-  return (
-    (
-      Math.abs(from.r - to.r) +
-      Math.abs(from.g - to.g) +
-      Math.abs(from.b - to.b) +
-      Math.abs(from.a - to.a)
-    ) / 255
-  ) / 4;
-}
-
-/** t = C / Cn ratio */
-function labF(t: number): number {
-  if (t > DELTA_CUBE) return Math.cbrt(t);
-  return (t / (3 * DELTA_SQUARE)) + DELTA_ADD;
-}
-
-/** Inverse lab function */
-function inverseLabF(t: number): number {
-  if (t > DELTA_CUBE) return Math.pow(t, 3);
-  return (3 * DELTA_SQUARE) * (t - DELTA_ADD);
-}
-
-function rgbaFromHex(hex: string): [number, number, number, number] {
-  if (!/^#([A-Fa-f0-9]{3}){1,2}([A-Fa-f0-9]{2})?$/.test(hex)) {
-    throw new TypeError(`Expected number or hex code. Got ${hex}`);
-  }
-  let colors = hex.slice(1).split("");
-  if (colors.length === 3) {
-    colors = [
-      colors[0],
-      colors[0],
-      colors[1],
-      colors[1],
-      colors[2],
-      colors[2],
-    ];
-  }
-  // Convert hexadecimal to decimal
-  const red = parseInt(`${colors[0]}${colors[1]}`, 16) || 0;
-  const green = parseInt(`${colors[2]}${colors[3]}`, 16) || 0;
-  const blue = parseInt(`${colors[4]}${colors[5]}`, 16) || 0;
-  let alpha = 255;
-  if (colors[6] && colors[7]) {
-    alpha = parseInt(`${colors[6]}${colors[7]}`, 16) ?? 255;
-  }
-  return [red, green, blue, alpha];
-}
-
-/** Convert CIE XYZ to Linear RGB color space */
-export function rgbFromXyz(
-  x: number,
-  y: number,
-  z: number,
-): [number, number, number] {
+  const k = 1 - Math.max(r, g, b);
+  const maxC = max(color);
   return [
-    (3.2406 * x) + (-1.5372 * y) + (-0.4986 * z),
-    (-0.9689 * x) + (1.8758 * y) + (0.0415 * z),
-    (0.0557 * x) + (-0.2040 * y) + (1.0570 * z),
+    Math.round(((1 - r - k) / maxC) * 100),
+    Math.round(((1 - g - k) / maxC) * 100),
+    Math.round(((1 - b - k) / maxC) * 100),
+    Math.round(k * 100),
   ];
 }
 
-export function xyzFromLab(
-  l: number,
-  a: number,
-  b: number,
-): [number, number, number] {
-  const add = (l + 16) / 116;
-  const x = STANDARD_ILLUMINANT[0] * inverseLabF(add + (a / 500));
-  const y = STANDARD_ILLUMINANT[1] * inverseLabF(add);
-  const z = STANDARD_ILLUMINANT[2] * inverseLabF(add - (b / 200));
-
-  return [x, y, z];
+/** Get contrast ratio  */
+export function contrast(color1: Color4, color2: Color4): number {
+  const l1 = luminance(color1);
+  const l2 = luminance(color2);
+  return l1 > l2 ? (l1 + 0.5) / (l2 + 0.5) : (l2 + 0.5) / (l1 + 0.5);
 }
 
-/**
- * Find the nearest neighbour of a color in a palette
- * It would be more accurate to use consider luminance
- * along with Euclidean distance but I chose to stay with
- * distance for performance.
- */
-export function findClosestColor(color: Color, palette: Color[]): Color {
-  const closest = {
-    dist: Infinity,
-    i: 0,
+/** Convert RGB(A) to HCG */
+export function hcg(color: Color3 | Color4): Color3 {
+  const chromaC = chroma(color);
+  return [
+    Math.round(hue(color)),
+    chromaC,
+    chromaC < 1 ? min(color) / (1 - chromaC) : 0,
+  ];
+}
+
+/** Convert RGB(A) to Hex */
+export function hex(color: Color3 | Color4) {
+  return `#${toHex(color[0])}${toHex(color[1])}${toHex(color[2])}${
+    color[3] !== undefined ? toHex(color[3]) : ``
+  }`;
+}
+/** Convert RGB(A) to Hue, Saturation, Lightness */
+export function hsl(color: Color3 | Color4): Color3 {
+  const s = saturation(color);
+
+  return [
+    Math.round(hue(color)),
+    Math.trunc((s * 10000) / 100),
+    Math.trunc((lightness(color) * 10000) / 100),
+  ];
+}
+/** Convert RGB(A) to Hue, Saturation, Value */
+export function hsv(color: Color3 | Color4): Color3 {
+  const s = saturation(color);
+  const l = lightness(color);
+  const v = l + s * Math.min(l, 1 - l);
+
+  return [
+    Math.round(hue(color)),
+    !v ? 0 : Math.round(2 * (1 - l / v) * 100),
+    Math.round(v * 100),
+  ];
+}
+/** Calculate hue using chroma */
+export function hue(color: Color3 | Color4) {
+  const maxC = max(color);
+  const c = chroma(color);
+  // No color
+  if (!c) return 0;
+  const r = color[0] / 255;
+  const g = color[1] / 255;
+  const b = color[2] / 255;
+  const hue =
+    maxC === r ? (g - b) / c : maxC === g ? (b - r) / c + 2 : (r - g) / c + 4;
+  if (hue < 0) return hue * 60 + 360;
+  return hue * 60;
+}
+
+/** Invert a color linearly */
+export function invertLinear(color: Color3): Color3;
+export function invertLinear(color: Color4): Color4;
+export function invertLinear(color: Color3 | Color4): Color3 | Color4 {
+  return color.length === 3
+    ? [255 - color[0], 255 - color[1], 255 - color[2]]
+    : [255 - color[0], 255 - color[1], 255 - color[2], color[3]];
+}
+
+/** Bright colors darken, dark colors brighten. */
+export function invertValue(color: Color3): Color3;
+export function invertValue(color: Color4): Color4;
+export function invertValue(color: Color3 | Color4): Color3 | Color4 {
+  const conv = hsv(color);
+  conv[2] = 100 - conv[2];
+  const inverted = rgbFromHsv(conv[0], conv[1], conv[2]);
+  return color.length === 3 ? inverted : [...inverted, color[3]];
+}
+
+export function json(color: Color3 | Color4): ColorData {
+  return {
+    rgba: color.length === 3 ? [...color, 255] : color,
+    hcg: hcg(color),
+    hsl: hsl(color),
+    hsv: hsv(color),
+    cmyk: cmyk(color),
+    hex: color[3] === 255 ? hex(color).slice(0, 7) : hex(color),
+    xyz: xyz(color),
+    lab: lab(color),
   };
-  let i = 0;
-  while (i < palette.length) {
-    const m = meanDistance(color, palette[i]);
-    if (m < closest.dist) {
-      closest.dist = m;
-      closest.i = i;
-    }
-    i += 1;
+}
+/** CIE L*a*b color space */
+export function lab(color: Color3 | Color4): [number, number, number] {
+  const [x, y, z] = xyz(color);
+
+  const xxn = labF(x / STANDARD_ILLUMINANT[0]);
+  const yyn = labF(y / STANDARD_ILLUMINANT[1]);
+  const zzn = labF(z / STANDARD_ILLUMINANT[2]);
+
+  return [116 * yyn - 16, 500 * (xxn - yyn), 200 * (yyn - zzn)];
+}
+
+/** Get lightness of color. */
+export function lightness(color: Color3 | Color4) {
+  return (max(color) + min(color)) / 2;
+}
+/** Get linear rgb values */
+export function linearRgb(color: Color3 | Color4) {
+  return [
+    toLinear(color[0] / 255),
+    toLinear(color[1] / 255),
+    toLinear(color[2] / 255),
+  ];
+}
+/** Calculate luminance */
+export function luminance(color: Color3 | Color4): number {
+  const [r, g, b] = linearRgb(color);
+  return r * 0.2126 + g * 0.7152 + b * 0.0722;
+  // the below can also be used
+  // return Math.sqrt((0.299 * r * r) + (0.587 * g * g) + (0.114 * b * b));
+}
+/** Get maximum of r, g, b */
+export function max(color: Color3 | Color4): number {
+  return Math.max(color[0], color[1], color[2]) / 255;
+}
+/** Get minimum of r, g, b */
+export function min(color: Color3 | Color4): number {
+  return Math.min(color[0], color[1], color[2]) / 255;
+}
+/**
+ * Mix with a different color.
+ * Copyright (c) 2006-2009 Hampton Catlin, Natalie Weizenbaum, and Chris Eppstein
+ * http://sass-lang.com
+ * @see https://github.com/less/less.js/blob/cae5021358a5fca932c32ed071f652403d07def8/lib/less/functions/color.js#L302
+ */
+export function mix(color1: Color4, color2: Color4, percentage = 50): Color4 {
+  let p = percentage / 100;
+  if (p > 1) p = 1;
+  else if (p < 0) p = 0;
+  const w = p * 2 - 1;
+  const a = color1[3] - color2[3];
+
+  const w1 = ((w * a === -1 ? w : (w + a) / (1 + w * a)) + 1) / 2.0;
+  const w2 = 1 - w1;
+
+  const r = Math.round(color1[0] * w1 + color2[0] * w2);
+  const g = Math.round(color1[1] * w1 + color2[1] * w2);
+  const b = Math.round(color1[2] * w1 + color2[2] * w2);
+  const alpha = parseFloat((color1[3] * p + color2[3] * (1 - p)).toFixed(8));
+  return [r, g, b, alpha];
+}
+/** Get perceived lightness */
+export function perceivedLightness(color: Color3 | Color4): number {
+  const lum = luminance(color);
+  if (lum <= 216 / 24389) {
+    return lum * (24389 / 27);
   }
-  return palette[closest.i];
+  return Math.pow(lum, 1 / 3) * 116 - 16;
+}
+/** Get saturation */
+export function saturation(color: Color3 | Color4) {
+  const c = chroma(color);
+  const l = lightness(color);
+  // No color
+  if (!c) return 0;
+  return (max(color) - l) / Math.min(l, 1 - l);
+}
+/** Get a shade of the color */
+export function shade(color: Color4, weight = 50): Color4 {
+  return mix([0, 0, 0, 255], color, weight);
+}
+
+/** Stringify the RGBA color */
+export function string(color: Color3 | Color4): string {
+  return color.length === 3
+    ? `rgb(${color[0]},${color[1]},${color[2]})`
+    : `rgba(${color[0]},${color[1]},${color[2]},${color[3] / 255})`;
+}
+
+/** Get a tint of the color */
+export function tint(color: Color4, weight = 50): Color4 {
+  return mix([255, 255, 255, 255], color, weight);
+}
+
+/** CIE 1931 XYZ */
+export function xyz(color: Color3 | Color4): Color3 {
+  const [r, g, b] = linearRgb(color);
+
+  const x = 0.4124 * r + 0.3576 * g + 0.1805 * b;
+  const y = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  const z = 0.0193 * r + 0.1192 * g + 0.9505 * b;
+  return [x, y, z];
 }
