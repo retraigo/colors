@@ -210,11 +210,9 @@ export function perceivedLightness(color: Color3 | Color4): number {
 }
 /** Get saturation */
 export function saturation(color: Color3 | Color4) {
-  const c = chroma(color);
-  const l = lightness(color);
-  // No color
-  if (!c) return 0;
-  return (max(color) - l) / Math.min(l, 1 - l);
+  const u = max(color)
+  const v = min(color)
+  return (u - v) / (u + v)
 }
 /** Get a shade of the color */
 export function shade(color: Color4, weight = 50): Color4 {
