@@ -55,20 +55,6 @@ export function contrast(color1: Color4, color2: Color4): number {
   return l1 > l2 ? (l1 + 0.5) / (l2 + 0.5) : (l2 + 0.5) / (l1 + 0.5);
 }
 
-/** 
- * Convert RGBA to grayscale using luminance
- * 
- * Alternatively use `average()` or `lightness()`
- */
-export function grayscale(color: Color3): Color3;
-export function grayscale(color: Color4): Color4;
-export function grayscale(color: Color3 | Color4): Color3 | Color4 {
-  const l = Math.trunc(fromLinear(luminance(color)) * 255);
-  return color.length === 3
-    ? [l, l, l]
-    : [l, l, l, color[3]];
-}
-
 /** Convert RGB(A) to HCG */
 export function hcg(color: Color3 | Color4): Color3 {
   const chromaC = chroma(color);
@@ -89,11 +75,7 @@ export function hex(color: Color3 | Color4) {
 export function hsl(color: Color3 | Color4): Color3 {
   const s = saturation(color);
 
-  return [
-    Math.round(hue(color)),
-    Math.trunc((s * 10000) / 100),
-    Math.trunc((lightness(color) * 10000) / 100),
-  ];
+  return [hue(color), (s * 10000) / 100, lightness(color) * 100];
 }
 /** Convert RGB(A) to Hue, Saturation, Value */
 export function hsv(color: Color3 | Color4): Color3 {
@@ -101,11 +83,7 @@ export function hsv(color: Color3 | Color4): Color3 {
   const l = lightness(color);
   const v = l + s * Math.min(l, 1 - l);
 
-  return [
-    Math.round(hue(color)),
-    !v ? 0 : Math.round(2 * (1 - l / v) * 100),
-    Math.round(v * 100),
-  ];
+  return [hue(color), !v ? 0 : 2 * (1 - l / v) * 100, v * 100];
 }
 /** Calculate hue using chroma */
 export function hue(color: Color3 | Color4) {
