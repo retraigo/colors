@@ -75,7 +75,7 @@ export function hex(color: Color3 | Color4) {
 export function hsl(color: Color3 | Color4): Color3 {
   const s = saturation(color);
 
-  return [hue(color), (s * 10000) / 100, lightness(color) * 100];
+  return [hue(color), s * 100, lightness(color) * 100];
 }
 /** Convert RGB(A) to Hue, Saturation, Value */
 export function hsv(color: Color3 | Color4): Color3 {
