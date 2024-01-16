@@ -55,6 +55,20 @@ export function contrast(color1: Color4, color2: Color4): number {
   return l1 > l2 ? (l1 + 0.5) / (l2 + 0.5) : (l2 + 0.5) / (l1 + 0.5);
 }
 
+/** 
+ * Convert RGBA to grayscale using luminance
+ * 
+ * Alternatively use `average()` or `lightness()`
+ */
+export function grayscale(color: Color3): Color3;
+export function grayscale(color: Color4): Color4;
+export function grayscale(color: Color3 | Color4): Color3 | Color4 {
+  const l = Math.trunc(fromLinear(luminance(color)) * 255);
+  return color.length === 3
+    ? [l, l, l]
+    : [l, l, l, color[3]];
+}
+
 /** Convert RGB(A) to HCG */
 export function hcg(color: Color3 | Color4): Color3 {
   const chromaC = chroma(color);
