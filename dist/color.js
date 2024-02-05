@@ -283,9 +283,9 @@ function hex(color) {
 function hsl(color) {
     const s = saturation(color);
     return [
-        Math.round(hue(color)),
-        Math.trunc(s * 10000 / 100),
-        Math.trunc(lightness(color) * 10000 / 100)
+        hue(color),
+        s * 100,
+        lightness(color) * 100
     ];
 }
 function hsv(color) {
@@ -293,9 +293,9 @@ function hsv(color) {
     const l = lightness(color);
     const v = l + s * Math.min(l, 1 - l);
     return [
-        Math.round(hue(color)),
-        !v ? 0 : Math.round(2 * (1 - l / v) * 100),
-        Math.round(v * 100)
+        hue(color),
+        !v ? 0 : 2 * (1 - l / v) * 100,
+        v * 100
     ];
 }
 function hue(color) {
@@ -371,9 +371,9 @@ function lightness(color) {
 }
 function linearRgb(color) {
     return [
-        toLinear(color[0] / 255),
-        toLinear(color[1] / 255),
-        toLinear(color[2] / 255)
+        toLinear(color[0] < 1 ? color[0] : color[0] / 255),
+        toLinear(color[1] < 1 ? color[1] : color[1] / 255),
+        toLinear(color[2] < 1 ? color[2] : color[2] / 255)
     ];
 }
 function luminance(color) {
@@ -413,10 +413,9 @@ function perceivedLightness(color) {
     return Math.pow(lum, 1 / 3) * 116 - 16;
 }
 function saturation(color) {
-    const c = chroma(color);
-    const l = lightness(color);
-    if (!c) return 0;
-    return (max(color) - l) / Math.min(l, 1 - l);
+    const u = max(color);
+    const v = min(color);
+    return (u - v) / (u + v);
 }
 function shade(color, weight = 50) {
     return mix([
@@ -474,3 +473,17 @@ export { shade as shade };
 export { string as string };
 export { tint as tint };
 export { xyz as xyz };
+function grayscale(color) {
+    const l = Math.trunc(fromLinear(luminance(color)) * 255);
+    return color.length === 3 ? [
+        l,
+        l,
+        l
+    ] : [
+        l,
+        l,
+        l,
+        color[3]
+    ];
+}
+export { grayscale as grayscale };

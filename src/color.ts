@@ -158,9 +158,9 @@ export function lightness(color: Color3 | Color4) {
 /** Get linear rgb values */
 export function linearRgb(color: Color3 | Color4): Color3 {
   return [
-    toLinear(color[0] / 255),
-    toLinear(color[1] / 255),
-    toLinear(color[2] / 255),
+    toLinear(color[0] < 1 ? color[0] : color[0] / 255),
+    toLinear(color[1] < 1 ? color[1] : color[1] / 255),
+    toLinear(color[2] < 1 ? color[2] : color[2] / 255),
   ];
 }
 /** Calculate luminance */
