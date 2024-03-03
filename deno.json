@@ -1,8 +1,7 @@
 {
   "name": "@retraigo/colors",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "exports": {
-    ".": "./mod.ts",
-    "./js": "./dist/color.js"
+    ".": "./mod.ts"
   }
 }
