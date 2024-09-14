@@ -4,14 +4,32 @@ Color conversion, shade/tint generation, color quantization, and more in TypeScr
 
 **Note: All methods either accept RGB/RGBA colors as parameters or give RGB/RGBA colors as results. In order to work with other color spaces (eg. XYZ), convert them to RGB first.**
 
+## Installation
+
+If you are using NodeJS, an extra installation step is required.
+
+```sh
+# NPM
+$ npx jsr add @retraigo/colors
+# PNPM
+$ pnpm dlx jsr add @retraigo/colors
+```
+
 ## Usage
 
+For browser usage, use a bundler.
+
+For Node/Deno usage, refer below.
+
 ```ts
-// Deno
+// Deno /x
 import { rgbaFromHex, xyz, lab } from "https://deno.land/x/colors/mod.ts";
 
-// Web
-import { rgbaFromHex, xyz, lab } from "https://deno.land/x/colors/dist/color.js";
+// Deno JSR
+import { rgbaFromHex, xyz, lab } from "jsr:@retraigo/colors";
+
+// Node JSR (after installation)
+import { rgbaFromHex, xyz, lab } from "jsr:@retraigo/colors";
 
 const color = rgbaFromHex("#fceff1");
 
@@ -25,4 +43,4 @@ console.log(lab(color));
 console.log(json(color));
 ```
 
-Refer [https://deno.land/x/colors/mod.ts] for documentation.
+Refer [https://jsr.io/@retraigo/colors] for documentation.
