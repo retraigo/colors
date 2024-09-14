@@ -1,9 +1,10 @@
 // Fully functional, specially for working with Images
 
 import { fromLinear, toLinear } from "./util/linear.ts";
-import { Color3, Color4, STANDARD_ILLUMINANT, labF, toHex } from "./common.ts";
+import { type Color3, type Color4, STANDARD_ILLUMINANT, labF, toHex } from "./common.ts";
 import { rgbFromHsv } from "./conversion.ts";
 
+/** A record of color spaces and values for the color in those spaces. */
 export type ColorData = {
   /** sRGB color space */
   rgba: [number, number, number, number];
@@ -24,11 +25,11 @@ export type ColorData = {
 };
 
 /** Get average of colors. Can be used for grayscale. */
-export function average(color: Color3 | Color4) {
+export function average(color: Color3 | Color4): number {
   return Math.trunc((color[0] + color[1] + color[2]) / 3);
 }
 /** Calculate chroma */
-export function chroma(color: Color3 | Color4) {
+export function chroma(color: Color3 | Color4): number {
   return max(color) - min(color);
 }
 
@@ -66,7 +67,7 @@ export function hcg(color: Color3 | Color4): Color3 {
 }
 
 /** Convert RGB(A) to Hex */
-export function hex(color: Color3 | Color4) {
+export function hex(color: Color3 | Color4): string {
   return `#${toHex(color[0])}${toHex(color[1])}${toHex(color[2])}${
     color[3] !== undefined ? toHex(color[3]) : ``
   }`;
@@ -86,7 +87,7 @@ export function hsv(color: Color3 | Color4): Color3 {
   return [hue(color), !v ? 0 : 2 * (1 - l / v) * 100, v * 100];
 }
 /** Calculate hue using chroma */
-export function hue(color: Color3 | Color4) {
+export function hue(color: Color3 | Color4): number {
   const maxC = max(color);
   const c = chroma(color);
   // No color
@@ -152,10 +153,14 @@ export function lab(color: Color3 | Color4): [number, number, number] {
 }
 
 /** Get lightness of color. */
-export function lightness(color: Color3 | Color4) {
+export function lightness(color: Color3 | Color4): number {
   return (max(color) + min(color)) / 2;
 }
-/** Get linear rgb values */
+/** 
+ * Get linear rgb values
+ * @param color An array of RGB or RGBA values.
+ * @returns An array of [R,G,B] values in the linear RGB space, scaled to [0, 1].
+ */
 export function linearRgb(color: Color3 | Color4): Color3 {
   return [
     toLinear(color[0] < 1 ? color[0] : color[0] / 255),
@@ -163,18 +168,30 @@ export function linearRgb(color: Color3 | Color4): Color3 {
     toLinear(color[2] < 1 ? color[2] : color[2] / 255),
   ];
 }
-/** Calculate luminance */
+/**
+ * Calculate luminance from RGB or RGBA color
+ * @param color An array of RGB or RGBA values.
+ * @returns The luminance of the color.
+ */
 export function luminance(color: Color3 | Color4): number {
   const [r, g, b] = linearRgb(color);
   return r * 0.2126 + g * 0.7152 + b * 0.0722;
   // the below can also be used
   // return Math.sqrt((0.299 * r * r) + (0.587 * g * g) + (0.114 * b * b));
 }
-/** Get maximum of r, g, b */
+/**
+ * Get maximum of r, g, b, a, scaled to [0, 1].
+ * @param color An array of RGB or RGBA values.
+ * @returns The maximum value in the array scaled to [0, 1].
+ */
 export function max(color: Color3 | Color4): number {
   return Math.max(color[0], color[1], color[2]) / 255;
 }
-/** Get minimum of r, g, b */
+/** 
+ * Get minimum of r, g, b, a, scaled to [0, 1].
+ * @param color An array of RGB or RGBA values.
+ * @returns The minimum value in the array scaled to [0, 1].
+ */
 export function min(color: Color3 | Color4): number {
   return Math.min(color[0], color[1], color[2]) / 255;
 }
@@ -209,7 +226,7 @@ export function perceivedLightness(color: Color3 | Color4): number {
   return Math.pow(lum, 1 / 3) * 116 - 16;
 }
 /** Get saturation */
-export function saturation(color: Color3 | Color4) {
+export function saturation(color: Color3 | Color4): number {
   const u = max(color)
   const v = min(color)
   return (u - v) / (u + v)

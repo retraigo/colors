@@ -1,6 +1,6 @@
 /** This module has all X -> RGBA methods */
 
-import { Color3, Color4, STANDARD_ILLUMINANT, inverseLabF } from "./common.ts";
+import { type Color3, type Color4, STANDARD_ILLUMINANT, inverseLabF } from "./common.ts";
 
 /** Convert HSL color to RGB */
 export function rgbFromHsl(h: number, s: number, l: number): Color3 {

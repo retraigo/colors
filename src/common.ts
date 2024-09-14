@@ -5,7 +5,9 @@ export const STANDARD_ILLUMINANT = [0.950489, 1, 1.08884];
 
 /** 6 / 29 */
 export const DELTA = 0.20689655172413793;
+/** (6 / 29)^2 */
 export const DELTA_SQUARE = 0.04280618311533888;
+/** (6 / 29)^3 */
 export const DELTA_CUBE = 0.008856451679035631;
 
 /** 4 / 29 */
@@ -47,6 +49,9 @@ export function toHex(n: number): string {
  * along with Euclidean distance but I chose to stay with
  * distance for performance.
  */
+export function findClosestColor(color: Color1, palette: Color1[]): Color1;
+export function findClosestColor(color: Color3, palette: Color3[]): Color3;
+export function findClosestColor(color: Color4, palette: Color4[]): Color4;
 export function findClosestColor(color: number[], palette: number[][]): number[] {
   const closest = {
     dist: Infinity,
