@@ -43,4 +43,4 @@ console.log(lab(color));
 console.log(json(color));
 ```
 
-Refer [https://jsr.io/@retraigo/colors] for documentation.
+Refer [jsr:@retraigo/colors](https://jsr.io/@retraigo/colors) for documentation.
