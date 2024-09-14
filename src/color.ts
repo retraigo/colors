@@ -129,6 +129,7 @@ export function invertValue(color: Color3 | Color4): Color3 | Color4 {
   return color.length === 3 ? inverted : [...inverted, color[3]];
 }
 
+/** Get a record of all available color spaces and the color in that space. */
 export function json(color: Color3 | Color4): ColorData {
   return {
     rgba: color.length === 3 ? [...color, 255] : color,

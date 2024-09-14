@@ -39,6 +39,7 @@ export function inverseLabF(t: number): number {
   return 3 * DELTA_SQUARE * (t - DELTA_ADD);
 }
 
+/** Convert decimal to hex */
 export function toHex(n: number): string {
   return `${(n | (1 << 8)).toString(16).slice(1)}`;
 }
